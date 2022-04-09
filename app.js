@@ -1,5 +1,13 @@
 var canvas = document.getElementById('myCanvas');
 var ctx = canvas.getContext('2d');
+var info = {
+    x: 30,
+    y: canvas.height - 40,
+    message: '',
+    render: function () {
+        ctx.fillText(this.message, this.x, this.y);
+    }
+};
 function Ball(x, y) {
     var _this = this;
     this.x = x;
@@ -14,6 +22,12 @@ function Ball(x, y) {
         ctx.fill();
         ctx.closePath();
     };
+    this.initalize = function () {
+        _this.x = x;
+        _this.y = y;
+        _this.xSpeed = 2.5;
+        _this.ySpeed = 2.5;
+    };
     this.turnLeft = function () {
         _this.xSpeed = -Math.abs(_this.xSpeed);
     };
@@ -23,8 +37,9 @@ function Ball(x, y) {
     this.turnDown = function () {
         _this.ySpeed = Math.abs(_this.ySpeed);
     };
-    this.turnUp = function () {
-        _this.ySpeed = -Math.abs(_this.ySpeed);
+    this.turnUp = function (speed) {
+        if (speed === void 0) { speed = 0; }
+        _this.ySpeed = -Math.abs(_this.ySpeed + speed);
     };
     this.move = function (mx, my) {
         _this.x += mx;
@@ -76,8 +91,52 @@ var Block = /** @class */ (function () {
 }());
 var ball = new Ball(canvas.width / 2, canvas.height / 2);
 var paddle = new Paddle();
-var gameover = function () {
-    location.reload();
+function Player(life) {
+    var _this = this;
+    this.life = life;
+    this.lifeDecrease = function () {
+        _this.life--;
+        ball.initalize();
+        info.message = "life: ".concat(_this.life);
+    };
+    this.gameover = function () {
+        info.message = 'Gameover';
+        setTimeout(function () {
+            location.reload();
+        }, 500);
+    };
+    this.victory = function () {
+        info.message = 'Victory';
+        setTimeout(function () {
+            location.reload();
+        }, 500);
+    };
+}
+var player = new Player(3);
+info.message = "life: ".concat(player.life);
+var drawBlocks = function (blocks) {
+    for (var _i = 0, blocks_1 = blocks; _i < blocks_1.length; _i++) {
+        var col = blocks_1[_i];
+        for (var _a = 0, col_1 = col; _a < col_1.length; _a++) {
+            var block = col_1[_a];
+            if (block.state === Visible.SHOW) {
+                block.render();
+            }
+        }
+    }
+};
+var score = 0;
+var renderScore = function () {
+    ctx.font = '20px Arial';
+    ctx.fillStyle = '#888';
+    var text = "[".concat(score, "]");
+    ctx.fillText(text, 10, 35);
+};
+var incraseScore = function () {
+    score++;
+};
+var decreaseScore = function () {
+    score--;
 };
 var makeBlock = function (row, col, padding, offsetLeft, offsetTop) {
     var blocks = [];
@@ -94,17 +153,9 @@ var makeBlock = function (row, col, padding, offsetLeft, offsetTop) {
     }
     return blocks;
 };
-var drawBlocks = function (blocks) {
-    for (var _i = 0, blocks_1 = blocks; _i < blocks_1.length; _i++) {
-        var col = blocks_1[_i];
-        for (var _a = 0, col_1 = col; _a < col_1.length; _a++) {
-            var block = col_1[_a];
-            if (block.state === Visible.SHOW) {
-                block.render();
-            }
-        }
-    }
-};
+var rowCnt = 3;
+var colCnt = 7;
+var blocks = makeBlock(rowCnt, colCnt, 15, 50, 40);
 var collisionDetection = function (blocks) {
     for (var _i = 0, blocks_2 = blocks; _i < blocks_2.length; _i++) {
         var col = blocks_2[_i];
@@ -119,12 +170,15 @@ var collisionDetection = function (blocks) {
                 if (inX && inY) {
                     block.state = Visible.HIDE;
                     ball.turnDown();
+                    incraseScore();
+                    if (score === rowCnt * colCnt) {
+                        player.victory();
+                    }
                 }
             }
         }
     }
 };
-var blocks = makeBlock(4, 7, 15, 50, 40);
 var draw = function () {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     // blocks
@@ -132,6 +186,8 @@ var draw = function () {
     collisionDetection(blocks);
     ball.render();
     paddle.render();
+    info.render();
+    renderScore();
     // ball
     if (ball.x + ball.xSpeed < ball.radius ||
         ball.x + ball.xSpeed > canvas.width - ball.radius) {
@@ -146,7 +202,7 @@ var draw = function () {
         ball.turnDown();
     }
     else if (isHit) {
-        ball.turnUp();
+        ball.turnUp(0.5);
         if (control.leftPressed) {
             ball.turnLeft();
         }
@@ -155,7 +211,12 @@ var draw = function () {
         }
     }
     else if (ballBottom + ySpeed > canvas.height) {
-        gameover();
+        if (player.life > 1) {
+            player.lifeDecrease();
+        }
+        else {
+            player.gameover();
+        }
     }
     ball.move(xSpeed, ySpeed);
     // paddle
@@ -169,7 +230,8 @@ var draw = function () {
 };
 var control = {
     leftPressed: false,
-    rightPressed: false
+    rightPressed: false,
+    isMouseDown: false
 };
 var handleKeyDown = function (e) {
     var key = e.key;
@@ -189,6 +251,21 @@ var handleKeyUp = function (e) {
         control.rightPressed = false;
     }
 };
+var handleMouseDown = function (e) {
+    control.isMouseDown = true;
+    var handleMouseUp = function () {
+        control.isMouseDown = false;
+        document.removeEventListener('mouseup', handleMouseUp);
+    };
+    document.addEventListener('mouseup', handleMouseUp);
+};
+var moveMouse = function (e) {
+    if (!control.isMouseDown)
+        return;
+    paddle.move(e.movementX);
+};
 document.addEventListener('keydown', handleKeyDown, false);
 document.addEventListener('keyup', handleKeyUp, false);
+document.addEventListener('mousedown', handleMouseDown, false);
+document.addEventListener('mousemove', moveMouse, false);
 setInterval(draw, 10);

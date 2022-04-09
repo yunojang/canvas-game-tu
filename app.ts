@@ -1,6 +1,16 @@
 let canvas = document.getElementById('myCanvas') as HTMLCanvasElement;
 const ctx = canvas.getContext('2d');
 
+const info = {
+  x: 30,
+  y: canvas.height - 40,
+  message: '',
+
+  render() {
+    ctx.fillText(this.message, this.x, this.y);
+  },
+};
+
 function Ball(x: number, y: number) {
   this.x = x;
   this.y = y;
@@ -17,6 +27,13 @@ function Ball(x: number, y: number) {
     ctx.closePath();
   };
 
+  this.initalize = () => {
+    this.x = x;
+    this.y = y;
+    this.xSpeed = 2.5;
+    this.ySpeed = 2.5;
+  };
+
   this.turnLeft = () => {
     this.xSpeed = -Math.abs(this.xSpeed);
   };
@@ -29,8 +46,8 @@ function Ball(x: number, y: number) {
     this.ySpeed = Math.abs(this.ySpeed);
   };
 
-  this.turnUp = () => {
-    this.ySpeed = -Math.abs(this.ySpeed);
+  this.turnUp = (speed: number = 0) => {
+    this.ySpeed = -Math.abs(this.ySpeed + speed);
   };
 
   this.move = (mx: number, my: number) => {
@@ -94,11 +111,63 @@ class Block {
 const ball = new Ball(canvas.width / 2, canvas.height / 2);
 const paddle = new Paddle();
 
-const gameover = () => {
-  location.reload();
-};
+function Player(life: number) {
+  this.life = life;
+
+  this.lifeDecrease = () => {
+    this.life--;
+    ball.initalize();
+    info.message = `life: ${this.life}`;
+  };
+
+  this.gameover = () => {
+    info.message = 'Gameover';
+
+    setTimeout(() => {
+      location.reload();
+    }, 500);
+  };
+
+  this.victory = () => {
+    info.message = 'Victory';
+
+    setTimeout(() => {
+      location.reload();
+    }, 500);
+  };
+}
+
+const player = new Player(3);
+info.message = `life: ${player.life}`;
 
 type Blocks = Block[][];
+
+const drawBlocks = (blocks: Blocks) => {
+  for (const col of blocks) {
+    for (const block of col) {
+      if (block.state === Visible.SHOW) {
+        block.render();
+      }
+    }
+  }
+};
+
+let score = 0;
+
+const renderScore = () => {
+  ctx.font = '20px Arial';
+  ctx.fillStyle = '#888';
+  const text = `[${score}]`;
+  ctx.fillText(text, 10, 35);
+};
+
+const incraseScore = () => {
+  score++;
+};
+
+const decreaseScore = () => {
+  score--;
+};
 
 const makeBlock = (
   row: number,
@@ -124,15 +193,9 @@ const makeBlock = (
   return blocks;
 };
 
-const drawBlocks = (blocks: Blocks) => {
-  for (const col of blocks) {
-    for (const block of col) {
-      if (block.state === Visible.SHOW) {
-        block.render();
-      }
-    }
-  }
-};
+const rowCnt = 3;
+const colCnt = 7;
+const blocks = makeBlock(rowCnt, colCnt, 15, 50, 40);
 
 const collisionDetection = (blocks: Blocks) => {
   for (const col of blocks) {
@@ -148,13 +211,16 @@ const collisionDetection = (blocks: Blocks) => {
         if (inX && inY) {
           block.state = Visible.HIDE;
           ball.turnDown();
+          incraseScore();
+
+          if (score === rowCnt * colCnt) {
+            player.victory();
+          }
         }
       }
     }
   }
 };
-
-const blocks = makeBlock(4, 7, 15, 50, 40);
 
 const draw = () => {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -165,6 +231,8 @@ const draw = () => {
 
   ball.render();
   paddle.render();
+  info.render();
+  renderScore();
 
   // ball
   if (
@@ -184,7 +252,7 @@ const draw = () => {
   if (ball.y + ySpeed < ball.radius) {
     ball.turnDown();
   } else if (isHit) {
-    ball.turnUp();
+    ball.turnUp(0.5);
 
     if (control.leftPressed) {
       ball.turnLeft();
@@ -192,7 +260,11 @@ const draw = () => {
       ball.turnRight();
     }
   } else if (ballBottom + ySpeed > canvas.height) {
-    gameover();
+    if (player.life > 1) {
+      player.lifeDecrease();
+    } else {
+      player.gameover();
+    }
   }
 
   ball.move(xSpeed, ySpeed);
@@ -209,11 +281,13 @@ const draw = () => {
 interface Control {
   leftPressed: boolean;
   rightPressed: boolean;
+  isMouseDown: boolean;
 }
 
 const control: Control = {
   leftPressed: false,
   rightPressed: false,
+  isMouseDown: false,
 };
 
 const handleKeyDown = (e: KeyboardEvent) => {
@@ -236,7 +310,25 @@ const handleKeyUp = (e: KeyboardEvent) => {
   }
 };
 
+const handleMouseDown = (e: MouseEvent) => {
+  control.isMouseDown = true;
+
+  const handleMouseUp = () => {
+    control.isMouseDown = false;
+    document.removeEventListener('mouseup', handleMouseUp);
+  };
+  document.addEventListener('mouseup', handleMouseUp);
+};
+
+const moveMouse = (e: MouseEvent) => {
+  if (!control.isMouseDown) return;
+
+  paddle.move(e.movementX);
+};
+
 document.addEventListener('keydown', handleKeyDown, false);
 document.addEventListener('keyup', handleKeyUp, false);
+document.addEventListener('mousedown', handleMouseDown, false);
+document.addEventListener('mousemove', moveMouse, false);
 
 setInterval(draw, 10);
